@@ -1,3 +1,4 @@
+import asyncio
 import ipaddress
 import logging
 import os
@@ -164,9 +165,8 @@ async def password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     value = "".join(secrets.choice(alphabet) for _ in range(20))
     await update.message.reply_text(
         "🔐 وشەی نهێنییەکی بەهێز (٢٠ پیت):\n"
-        f"<code>{value}</code>\n\n"
-        "لە هەژمارە جیاوازەکاندا دووبارە بەکاری مەهێنە و لە شوێنێکی پارێزراودا هەڵیبگرە.",
-        parse_mode="HTML",
+        f"{value}\n\n"
+        "لە هەژمارە جیاوازەکاندا دووبارە بەکاری مەهێنە و لە شوێنێکی پارێزراودا هەڵیبگرە."
     )
 
 
@@ -178,7 +178,7 @@ async def urlcheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     await update.message.reply_text("⏳ پشکنینی سەرەتایی دەکەم...")
     try:
-        result = inspect_url(" ".join(context.args))
+        result = await asyncio.to_thread(inspect_url, " ".join(context.args))
     except ValueError as exc:
         result = f"❌ {exc}"
     await update.message.reply_text(result, disable_web_page_preview=True)
@@ -186,6 +186,7 @@ async def urlcheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message:
+        context.user_data["quiz_active"] = True
         await update.message.reply_text(
             "🧠 پرسیاری فێرکاری\n\n"
             "کامەیان باشترین ڕێگای زیادکردنی پاراستنی هەژمارە؟\n"
@@ -199,13 +200,17 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def text_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.message.text:
         return
+    if not context.user_data.get("quiz_active"):
+        return
     answer = update.message.text.strip().upper()
     if answer in {"B", "٢", "2"}:
+        context.user_data["quiz_active"] = False
         await update.message.reply_text("✅ ڕاستە! وشەی نهێنیی جیاواز و 2FA پاراستن زیاد دەکەن.")
-    elif answer in {"A", "C", "١", "١", "٣", "1", "3"}:
-        await update.message.reply_text("❌ ئەوە وەڵامی دروست نییە. /quiz بنێرە و جارێکی تر تاقی بکەرەوە.")
+    elif answer in {"A", "C", "١", "٣", "1", "3"}:
+        context.user_data["quiz_active"] = False
+        await update.message.reply_text("❌ ئەوە وەڵامی دروست نییە. وەڵامی دروست B ـە: وشەی نهێنیی جیاواز + 2FA.")
     else:
-        await update.message.reply_text("بۆ دەستپێکردن /help بنێرە. بۆ پرسیارەکە وەڵامی A، B یان C بنووسە.")
+        await update.message.reply_text("تکایە تەنها A، B یان C بنووسە.")
 
 
 def main() -> None:
