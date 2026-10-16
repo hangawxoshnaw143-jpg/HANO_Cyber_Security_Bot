@@ -9,9 +9,12 @@ from urllib.parse import urlparse
 
 import requests
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import Application, ApplicationHandlerStop, CommandHandler, ContextTypes, MessageHandler, TypeHandler, filters
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+AUTHORIZED_USER_IDS = {
+    item.strip() for item in os.getenv("AUTHORIZED_USER_IDS", "").split(",") if item.strip()
+}
 AUTHORIZED_TARGETS = tuple(
     item.strip().lower().lstrip(".")
     for item in os.getenv("AUTHORIZED_TARGETS", "").split(",")
@@ -37,6 +40,7 @@ SECURITY_HEADERS = {
 HELP = """🛡️ HANO Cyber Security Agent
 
 /agent <ئەرک> — پلانکردن و جێبەجێکردنی ئەرکی پارێزراو
+/id — بینینی Telegram user ID ـی خۆت
 /status — دۆخی بۆت و ڕێکخستنەکان
 /scope — دۆمەینە ڕێگەپێدراوەکان
 /urlcheck example.com — پشکنینی passive هێدەرەکانی وێب
@@ -192,6 +196,30 @@ def plan_agent_task(task: str) -> str:
         "بۆ جێبەجێکردنی ئۆتۆماتیکی، ئەرکەکە بە وردی بنووسە و ئامانجی ڕێگەپێدراو لە AUTHORIZED_TARGETS زیاد بکە."
     )
 
+async def authorize_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Fail closed: only allowlisted Telegram users can use bot features; /id is safe for setup."""
+    user = update.effective_user
+    message = update.effective_message
+    if user is None or message is None:
+        return
+    text = (message.text or "").strip()
+    if text.split(maxsplit=1)[0].split("@")[0].lower() == "/id":
+        return
+    if str(user.id) not in AUTHORIZED_USER_IDS:
+        await message.reply_text(
+            "🔒 ئەم بۆتە تایبەتە. بۆ ناسینی Telegram ID ـی خۆت /id بنێرە، "
+            "پاشان ID ـەکەت لە Railway → Variables بە ناوی AUTHORIZED_USER_IDS زیاد بکە."
+        )
+        raise ApplicationHandlerStop
+
+async def user_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_message and update.effective_user:
+        await update.effective_message.reply_text(
+            f"Telegram user ID ـی تۆ: {update.effective_user.id}\n"
+            "ئەم ژمارەیە تەنها لە Railway → Variables لە AUTHORIZED_USER_IDS دایبنێ؛ "
+            "لە GitHub یان شوێنی گشتی دانەمەزرێنە."
+        )
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message:
         await update.message.reply_text(
@@ -302,6 +330,8 @@ def main() -> None:
     if not BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN environment variable is missing.")
     app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(TypeHandler(Update, authorize_update), group=-1)
+    app.add_handler(CommandHandler("id", user_id))
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("status", status))
