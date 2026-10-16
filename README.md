@@ -1,49 +1,60 @@
-# HANO Cyber Security Bot 🛡️
+# HANO Cyber Security Agent 🛡️
 
-Telegram bot with Kurdish Sorani cybersecurity education and basic defensive checks.
+Telegram-based defensive cybersecurity assistant in Kurdish Sorani. This version introduces a scoped task workflow; it is **not yet a full LLM-powered autonomous agent**.
 
 ## Commands
-- `/start`, `/help` — introduction and command list in Kurdish Sorani
-- `/learn` — short account-security lesson
-- `/password` — generates a 20-character password using Python's secure random generator
-- `/urlcheck example.com` — checks HTTPS and common security response headers for a public website
-- `/quiz` — short security-awareness quiz
+- `/start`, `/help` — instructions
+- `/agent <task>` — classify a request, outline a safe plan, and run the supported passive check when applicable
+- `/status` — configuration status
+- `/scope` — configured authorized domains
+- `/urlcheck example.com` — passive HTTPS and response-header check
+- `/analyzelog <log text>` — local heuristic review of pasted logs; does not execute log content
+- `/password` — generate a 24-character password
+- `/learn`, `/quiz` — security basics
 
-## Safety
-- The URL check is a basic header review, not a penetration test or a guarantee that a website is secure.
-- Private, loopback, and non-public IP destinations are rejected; redirects are not followed.
-- Only check systems you own or are explicitly authorized to assess.
-- Never commit your Telegram bot token. Store it only in your hosting provider's environment variables.
-- The repository is currently public. Do not add secrets or personal data to it. Change repository visibility to Private in GitHub Settings if you want the source code private.
+## Scope and safety
+- Website checks only run for domains explicitly listed in `AUTHORIZED_TARGETS`.
+- Use only domains you own or have explicit permission to assess.
+- Checks are passive and limited to HTTPS and common security response headers; they are not penetration tests and do not prove a system is secure.
+- Private/loopback/non-public IP destinations are rejected; redirects are not followed.
+- The bot does not execute shell commands, exploit targets, bypass authentication, steal credentials, deploy malware, or exfiltrate data.
+- Log analysis is heuristic and may miss indicators or flag benign text. Do not send passwords, tokens, personal data, or other secrets in logs.
+- Never commit bot tokens or API keys. Store secrets only in the host's private environment variables.
+
+## Environment variables
+- `TELEGRAM_BOT_TOKEN` — required token from Telegram's official @BotFather
+- `AUTHORIZED_TARGETS` — comma-separated domains approved for passive checks, e.g. `example.com,yourdomain.org`
+- `LOG_LEVEL` — optional logging level, default `INFO`
+
+An empty `AUTHORIZED_TARGETS` means no website is authorized for scanning.
 
 ## Run locally
-Requires Python 3.11 or newer.
+Requires Python 3.11+.
 
 1. Install dependencies: `pip install -r requirements.txt`
-2. Set environment variable `TELEGRAM_BOT_TOKEN` to the token from Telegram's official @BotFather. Never paste it into source code or chat.
+2. Set `TELEGRAM_BOT_TOKEN` and optionally `AUTHORIZED_TARGETS`.
 3. Run: `python main.py`
 
 Linux/macOS:
 ```bash
 export TELEGRAM_BOT_TOKEN="your-token"
+export AUTHORIZED_TARGETS="yourdomain.org"
 python main.py
 ```
 
 Windows PowerShell:
 ```powershell
 $env:TELEGRAM_BOT_TOKEN="your-token"
+$env:AUTHORIZED_TARGETS="yourdomain.org"
 python main.py
 ```
 
-## Deploy on Railway
-1. Create a Railway project and deploy this GitHub repository from branch `main`.
-2. In the service's **Variables** section, add `TELEGRAM_BOT_TOKEN` and paste the token privately there.
-3. Deploy/redeploy. Check the deployment logs for `HANO Cyber Security Bot is starting.`
-4. Open your Telegram bot and send `/start`.
+## Railway deployment
+1. Open the service's **Variables** section.
+2. Add `TELEGRAM_BOT_TOKEN` using the token privately; do not paste it into chat or GitHub.
+3. Add `AUTHORIZED_TARGETS` with only domains you are authorized to test.
+4. Redeploy and check runtime logs for `HANO Cyber Security Agent starting`.
+5. In Telegram, send `/start` and then `/status`.
 
-The included `Procfile` defines a worker process: `python main.py`.
-
-## Troubleshooting
-- If logs say `TELEGRAM_BOT_TOKEN environment variable is missing`, add the variable in the hosting dashboard.
-- If Telegram reports another `getUpdates` request, stop any duplicate bot process. Run only one polling instance for this token.
-- If a token was exposed, revoke it with @BotFather and set the replacement in the host's Variables.
+## Current limitations / next phase
+This release uses deterministic rules for task routing; it does not yet use an external AI model, persistent task queue, database, or scheduled monitoring. Those should be added as separate, testable components with explicit approval gates before any impactful action.
